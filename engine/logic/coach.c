@@ -109,6 +109,10 @@ void smart_goalkeeper_move(struct Player *self, struct Scene *scene) {
     float dist = sqrt(dx*dx + dy*dy);
     if (dist < 65.0f) {
         target_x = ball_x;
+        if (self->team == 1 && target_x > home.x + 65.0f) target_x = home.x + 65.0f;
+        if (self->team == 1 && target_x < home.x - 65.0f) target_x = home.x - 65.0f;
+        if (self->team == 2 && target_x > home.x + 65.0f) target_x = home.x + 65.0f;
+        if (self->team == 2 && target_x < home.x - 65.0f) target_x = home.x - 65.0f;
         target_y = ball_y;
     }
     float move_dx = target_x - self->position.x;
@@ -137,13 +141,15 @@ void smart_shoot(struct Player *self, struct Scene *scene, int role) {
         float dx = target_x - scene->ball->position.x;
         float dy = target_y - scene->ball->position.y;
         float d = sqrt(dx*dx + dy*dy);
-        scene->ball->velocity.x = (dx / d) * max_power;
-        scene->ball->velocity.y = (dy / d) * max_power;
+        if (d > 0.1f) {
+            scene->ball->velocity.x = (dx / d) * max_power;
+            scene->ball->velocity.y = (dy / d) * max_power;
+        }
         return;
     }
 
     struct Player *best_teammate = NULL;
-    float best_distance = 1000.0f;
+    float best_distance = 2000.0f;
     int has_target = 0;
     struct Team *my_team = (self->team == 1) ? scene->first_team : scene->second_team;
 
@@ -171,7 +177,9 @@ void smart_shoot(struct Player *self, struct Scene *scene, int role) {
         }
     }
 
-    if(has_target) {
+    if(has_target && best_distance > 0.1f &&
+       ((self->team == 1 && scene->ball->position.x < CENTER_X + 220.0f) ||
+        (self->team == 2 && scene->ball->position.x > CENTER_X - 220.0f))) {
         float dx = best_teammate->position.x - scene->ball->position.x;
         float dy = best_teammate->position.y - scene->ball->position.y;
         scene->ball->velocity.x = (dx / best_distance) * max_power;
@@ -208,10 +216,14 @@ void smart_shoot(struct Player *self, struct Scene *scene, int role) {
             scene->ball->velocity.x = (dx / d) * max_power;
             scene->ball->velocity.y = (dy / d) * max_power;
         }
-        else {
+        else if (d > 0.1f) {
             float player_speed = self->talents.agility * 10.0f;
             scene->ball->velocity.x = (dx / d) * (player_speed * 1.05f);
             scene->ball->velocity.y = (dy / d) * (player_speed * 1.05f);
+        }
+        else {
+            scene->ball->velocity.x = 0;
+            scene->ball->velocity.y = 0;
         }
     }
 }
@@ -230,6 +242,10 @@ void smart_move(struct Player *self, struct Scene *scene, float attack_radius, i
         if (dist > 1.0f) {
             self->velocity.x = (dx / dist) * self->talents.agility * 10.0f;
             self->velocity.y = (dy / dist) * self->talents.agility * 10.0f;
+        }
+        else {
+            self->velocity.x = 0;
+            self->velocity.y = 0;
         }
         return;
     }
@@ -251,7 +267,7 @@ void smart_move(struct Player *self, struct Scene *scene, float attack_radius, i
         if (!ball_in_my_half) should_chase = false;
     }
 
-    if (role == 2 && dist_to_ball < 120.0f) {
+    if (role == 2 && dist_to_ball < 120.0f && is_closest_teammate(self, scene)) {
         should_chase = true;
     }
     if (teammate_has_ball) {
@@ -578,22 +594,22 @@ PlayerLogicFn get_change_state_logic(int team, int kit) {
  * ------------------------------------------------------------------------- */
 /* Team 1 */
 static struct Talents team1_talents[6] = {
-    {5, 7, 2, 6},
-    {6, 5, 5, 4},
-    {5, 5, 5, 5},
-    {5, 5, 5, 5},
-    {6, 7, 1, 6},
-    {1, 6, 5, 8},
+    {4, 6, 4, 6},
+    {6, 6, 4, 4},
+    {6, 6, 4, 4},
+    {5, 6, 4, 5},
+    {3, 7, 1, 7},
+    {1, 7, 3, 9},
 };
 
 /* Team 2 */
 static struct Talents team2_talents[6] = {
-    {5, 7, 2, 6},
+    {4, 4, 3, 6},
+    {6, 7, 3, 4},
     {6, 6, 4, 4},
-    {5, 5, 5, 5},
-    {5, 5, 5, 5},
-    {6, 7, 1, 6},
-    {1, 6, 4, 9},
+    {5, 6, 4, 5},
+    {3, 9, 1, 7},
+    {1, 7, 4, 8},
 };
 
 struct Talents get_talents(int team, int kit) {
